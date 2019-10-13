@@ -3,17 +3,31 @@
 module.exports = [
     {
         identity: 'thismodel',
-        connection: 'myConnection',
+        datastore: 'myConnection',
         migrate: 'create',
+        primaryKey: 'id',
         attributes: {
-            doo: 'string'
+            id: {
+                type: 'number',
+                autoMigrations: { autoIncrement: true }
+            },
+            doo: {
+                type: 'string'
+            }
         }
     },
     {
         identity: 'thatmodel',
-        connection: 'myConnection',
+        datastore: 'myConnection',
+        primaryKey: 'id',
         attributes: {
-            ding: 'float'
+            id: {
+                type: 'number',
+                autoMigrations: { autoIncrement: true }
+            },
+            ding: {
+                type: 'number'
+            }
         }
     }
 ];

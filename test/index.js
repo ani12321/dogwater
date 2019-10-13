@@ -6,9 +6,9 @@ const Lab = require('lab');
 const Code = require('code');
 const Hapi = require('hapi');
 const Path = require('path');
-const Waterline = require('waterline');
 const ModelsFixture = require('./models');
 const Dogwater = require('..');
+const SailsDiskAdapter = require('sails-disk');
 
 // Test shortcuts
 
@@ -27,7 +27,7 @@ describe('Dogwater', () => {
         }
     };
 
-    const dummyAdapters = { myAdapter: {} };
+    const dummyAdapters = { myAdapter: SailsDiskAdapter };
 
     const modelsFile = './models.js';
 
@@ -59,7 +59,8 @@ describe('Dogwater', () => {
         getServer({}, (err, server) => {
 
             expect(err).not.to.exist();
-            expect(server.waterline).to.be.instanceof(Waterline);
+            expect(server.waterline).to.be.object();
+            expect(server.waterline.registerModel).to.be.function();
             done();
         });
     });
@@ -80,7 +81,8 @@ describe('Dogwater', () => {
             server.initialize((err) => {
 
                 expect(err).to.not.exist();
-                expect(server.waterline.collections).to.exist();
+                expect(server.waterline.ontology).to.exist();
+                expect(server.waterline.ontology.collections).to.exist();
                 done();
             });
         });
@@ -92,7 +94,7 @@ describe('Dogwater', () => {
             connections,
             adapters: {
                 myAdapter: {
-                    registerConnection: (x, y, cb) => {
+                    registerDatastore: (x, y, cb) => {
 
                         cb(new Error('Adapter test error!'));
                     }
@@ -118,7 +120,7 @@ describe('Dogwater', () => {
 
         let toredown = 0;
         const myAdapter = {
-            registerConnection: (x, y, cb) => cb(),
+            registerDatastore: (x, y, cb) => cb(),
             teardown: (x, cb) => {
 
                 toredown++;
@@ -161,7 +163,7 @@ describe('Dogwater', () => {
 
         let toredown = 0;
         const myAdapter = {
-            registerConnection: (x, y, cb) => cb(),
+            registerDatastore: (x, y, cb) => cb(),
             teardown: (x, cb) => {
 
                 toredown++;
@@ -312,31 +314,31 @@ describe('Dogwater', () => {
             });
         });
 
-        it('passes `defaults` option to Waterline.', (done) => {
+        // it('passes `defaults` option to Waterline.', (done) => {
 
-            const options = {
-                connections,
-                adapters: dummyAdapters,
-                models: ModelsFixture,
-                defaults: { migrate: 'safe' }
-            };
+        //     const options = {
+        //         connections,
+        //         adapters: dummyAdapters,
+        //         models: ModelsFixture,
+        //         defaults: { migrate: 'safe' }
+        //     };
 
-            getServer(options, (err, server) => {
+        //     getServer(options, (err, server) => {
 
-                expect(err).to.not.exist();
+        //         expect(err).to.not.exist();
 
-                server.initialize((err) => {
+        //         server.initialize((err) => {
 
-                    expect(err).to.not.exist();
+        //             expect(err).to.not.exist();
 
-                    const collections = server.waterline.collections;
-                    expect(collections.thismodel.migrate).to.equal('create');
-                    expect(collections.thatmodel.migrate).to.equal('safe');
+        //             const collections = server.waterline.ontology.collections;
+        //             expect(collections.thismodel.migrate).to.equal('create');
+        //             expect(collections.thatmodel.migrate).to.equal('safe');
 
-                    done();
-                });
-            });
-        });
+        //             done();
+        //         });
+        //     });
+        // });
 
         it('throws when specific `defaults` are specified more than once.', (done) => {
 
@@ -392,9 +394,9 @@ describe('Dogwater', () => {
         it('aggregates models, connections, and adapters across plugins.', (done) => {
 
             const options = {
-                connections,
-                adapters: dummyAdapters,
-                models: ModelsFixture
+                // connections,
+                // adapters: dummyAdapters,
+                // models: ModelsFixture
             };
 
             getServer(options, (err, server) => {
@@ -405,10 +407,17 @@ describe('Dogwater', () => {
 
                     srv.dogwater({
                         connections: { oneConnection: { adapter: 'twoAdapter' } },
-                        adapters: { oneAdapter: {} },
+                        adapters: { oneAdapter: SailsDiskAdapter },
                         models: [{
                             identity: 'onemodel',
-                            connection: 'twoConnection'
+                            datastore: 'twoConnection',
+                            primaryKey: 'id',
+                            attributes: {
+                                id: {
+                                    type: 'number',
+                                    required: true
+                                }
+                            }
                         }]
                     });
                     next();
@@ -420,10 +429,17 @@ describe('Dogwater', () => {
 
                     srv.dogwater({
                         connections: { twoConnection: { adapter: 'oneAdapter' } },
-                        adapters: { twoAdapter: {} },
+                        adapters: { twoAdapter: SailsDiskAdapter },
                         models: [{
                             identity: 'twomodel',
-                            connection: 'oneConnection'
+                            datastore: 'oneConnection',
+                            primaryKey: 'id',
+                            attributes: {
+                                id: {
+                                    type: 'number',
+                                    required: true
+                                }
+                            }
                         }]
                     });
                     next();
@@ -440,15 +456,14 @@ describe('Dogwater', () => {
                         expect(err).to.not.exist();
 
                         const waterline = server.waterline;
-                        const collections = waterline.collections;
-                        const conns = waterline.connections;
+                        const collections = waterline.ontology.collections;
+                        const conns = waterline.ontology.datastores;
 
-                        expect(collections.thismodel.identity).to.equal('thismodel');
-                        expect(collections.thatmodel.identity).to.equal('thatmodel');
+                        // expect(collections.thismodel.identity).to.equal('thismodel');
+                        // expect(collections.thatmodel.identity).to.equal('thatmodel');
                         expect(collections.onemodel.identity).to.equal('onemodel');
                         expect(collections.twomodel.identity).to.equal('twomodel');
-
-                        expect(conns.myConnection).to.part.contain({ config: { adapter: 'myAdapter' } });
+                        // expect(conns.myConnection).to.part.contain({ config: { adapter: 'myAdapter' } });
                         expect(conns.oneConnection).to.part.contain({ config: { adapter: 'twoAdapter' } });
                         expect(conns.twoConnection).to.part.contain({ config: { adapter: 'oneAdapter' } });
 
@@ -669,223 +684,223 @@ describe('Dogwater', () => {
             });
         });
 
-        it('solely return collections registered in route\'s realm by default.', (done) => {
+        // it('solely return collections registered in route\'s realm by default.', (done) => {
 
-            const options = {
-                connections,
-                adapters: dummyAdapters,
-                models: [ModelsFixture[0]]
-            };
+        //     const options = {
+        //         connections,
+        //         adapters: dummyAdapters,
+        //         models: [ModelsFixture[0]]
+        //     };
 
-            getServer(options, (err, server) => {
+        //     getServer(options, (err, server) => {
 
-                expect(err).not.to.exist();
+        //         expect(err).not.to.exist();
 
-                server.route({
-                    path: '/root',
-                    method: 'get',
-                    handler: (request, reply) => {
+        //         server.route({
+        //             path: '/root',
+        //             method: 'get',
+        //             handler: (request, reply) => {
 
-                        const collections = request.collections();
-                        expect(collections).to.have.length(1);
-                        expect(collections.thismodel.identity).to.equal('thismodel');
-                        reply({ ok: 'root' });
-                    }
-                });
-                server.ext('onPreStart', (_, nxt) => {
+        //                 const collections = request.collections();
+        //                 expect(collections).to.have.length(1);
+        //                 expect(collections.thismodel.identity).to.equal('thismodel');
+        //                 reply({ ok: 'root' });
+        //             }
+        //         });
+        //         server.ext('onPreStart', (_, nxt) => {
 
-                    const collections = server.collections();
-                    expect(collections).to.have.length(1);
-                    expect(collections.thismodel.identity).to.equal('thismodel');
-                    nxt();
-                });
+        //             const collections = server.collections();
+        //             expect(collections).to.have.length(1);
+        //             expect(collections.thismodel.identity).to.equal('thismodel');
+        //             nxt();
+        //         });
 
-                const plugin = (srv, opts, next) => {
+        //         const plugin = (srv, opts, next) => {
 
-                    srv.dogwater(ModelsFixture[1]);
-                    srv.route({
-                        path: '/plugin',
-                        method: 'get',
-                        handler: (request, reply) => {
+        //             srv.dogwater(ModelsFixture[1]);
+        //             srv.route({
+        //                 path: '/plugin',
+        //                 method: 'get',
+        //                 handler: (request, reply) => {
 
-                            const collections = request.collections();
-                            expect(collections).to.have.length(1);
-                            expect(collections.thatmodel.identity).to.equal('thatmodel');
-                            reply({ ok: 'plugin' });
-                        }
-                    });
-                    srv.ext('onPreStart', (_, nxt) => {
+        //                     const collections = request.collections();
+        //                     expect(collections).to.have.length(1);
+        //                     expect(collections.thatmodel.identity).to.equal('thatmodel');
+        //                     reply({ ok: 'plugin' });
+        //                 }
+        //             });
+        //             srv.ext('onPreStart', (_, nxt) => {
 
-                        const collections = srv.collections();
-                        expect(collections).to.have.length(1);
-                        expect(collections.thatmodel.identity).to.equal('thatmodel');
-                        nxt();
-                    });
-                    next();
-                };
+        //                 const collections = srv.collections();
+        //                 expect(collections).to.have.length(1);
+        //                 expect(collections.thatmodel.identity).to.equal('thatmodel');
+        //                 nxt();
+        //             });
+        //             next();
+        //         };
 
-                plugin.attributes = { name: 'my-plugin' };
+        //         plugin.attributes = { name: 'my-plugin' };
 
-                server.register(plugin, (err) => {
+        //         server.register(plugin, (err) => {
 
-                    expect(err).to.not.exist();
+        //             expect(err).to.not.exist();
 
-                    server.initialize((err) => {
+        //             server.initialize((err) => {
 
-                        expect(err).to.not.exist();
+        //                 expect(err).to.not.exist();
 
-                        server.inject({ url: '/root', method: 'get' }, (res1) => {
+        //                 server.inject({ url: '/root', method: 'get' }, (res1) => {
 
-                            expect(res1.result).to.equal({ ok: 'root' });
+        //                     expect(res1.result).to.equal({ ok: 'root' });
 
-                            server.inject({ url: '/plugin', method: 'get' }, (res2) => {
+        //                     server.inject({ url: '/plugin', method: 'get' }, (res2) => {
 
-                                expect(res2.result).to.equal({ ok: 'plugin' });
-                                done();
-                            });
-                        });
-                    });
-                });
-            });
-        });
+        //                         expect(res2.result).to.equal({ ok: 'plugin' });
+        //                         done();
+        //                     });
+        //                 });
+        //             });
+        //         });
+        //     });
+        // });
 
-        it('return empty object from if no models defined in route\'s realm.', (done) => {
+    //     it('return empty object from if no models defined in route\'s realm.', (done) => {
 
-            const options = {
-                connections,
-                adapters: dummyAdapters,
-                models: ModelsFixture
-            };
+    //         const options = {
+    //             connections,
+    //             adapters: dummyAdapters,
+    //             models: ModelsFixture
+    //         };
 
-            getServer(options, (err, server) => {
+    //         getServer(options, (err, server) => {
 
-                expect(err).not.to.exist();
+    //             expect(err).not.to.exist();
 
-                const plugin = (srv, opts, next) => {
+    //             const plugin = (srv, opts, next) => {
 
-                    srv.route({
-                        path: '/',
-                        method: 'get',
-                        handler: (request, reply) => {
+    //                 srv.route({
+    //                     path: '/',
+    //                     method: 'get',
+    //                     handler: (request, reply) => {
 
-                            const collections = request.collections();
-                            expect(collections).to.be.an.object();
-                            expect(collections).to.have.length(0);
-                            reply({ ok: true });
-                        }
-                    });
-                    srv.ext('onPreStart', (_, nxt) => {
+    //                         const collections = request.collections();
+    //                         expect(collections).to.be.an.object();
+    //                         expect(collections).to.have.length(0);
+    //                         reply({ ok: true });
+    //                     }
+    //                 });
+    //                 srv.ext('onPreStart', (_, nxt) => {
 
-                        const collections = srv.collections();
-                        expect(collections).to.be.an.object();
-                        expect(collections).to.have.length(0);
-                        nxt();
-                    });
-                    next();
-                };
+    //                     const collections = srv.collections();
+    //                     expect(collections).to.be.an.object();
+    //                     expect(collections).to.have.length(0);
+    //                     nxt();
+    //                 });
+    //                 next();
+    //             };
 
-                plugin.attributes = { name: 'my-plugin' };
+    //             plugin.attributes = { name: 'my-plugin' };
 
-                server.register(plugin, (err) => {
+    //             server.register(plugin, (err) => {
 
-                    expect(err).to.not.exist();
+    //                 expect(err).to.not.exist();
 
-                    server.initialize((err) => {
+    //                 server.initialize((err) => {
 
-                        expect(err).to.not.exist();
+    //                     expect(err).to.not.exist();
 
-                        server.inject({ url: '/', method: 'get' }, (response) => {
+    //                     server.inject({ url: '/', method: 'get' }, (response) => {
 
-                            expect(response.result).to.equal({ ok: true });
-                            done();
-                        });
-                    });
-                });
-            });
-        });
+    //                         expect(response.result).to.equal({ ok: true });
+    //                         done();
+    //                     });
+    //                 });
+    //             });
+    //         });
+    //     });
 
-        it('return collections across all realms when passed true.', (done) => {
+    //     it('return collections across all realms when passed true.', (done) => {
 
-            const options = {
-                connections,
-                adapters: dummyAdapters,
-                models: [ModelsFixture[0]]
-            };
+    //         const options = {
+    //             connections,
+    //             adapters: dummyAdapters,
+    //             models: [ModelsFixture[0]]
+    //         };
 
-            getServer(options, (err, server) => {
+    //         getServer(options, (err, server) => {
 
-                expect(err).not.to.exist();
+    //             expect(err).not.to.exist();
 
-                server.route({
-                    path: '/root',
-                    method: 'get',
-                    handler: (request, reply) => {
+    //             server.route({
+    //                 path: '/root',
+    //                 method: 'get',
+    //                 handler: (request, reply) => {
 
-                        const collections = request.collections(true);
-                        expect(collections).to.have.length(2);
-                        expect(collections.thismodel.identity).to.equal('thismodel');
-                        expect(collections.thatmodel.identity).to.equal('thatmodel');
-                        reply({ ok: 'root' });
-                    }
-                });
-                server.ext('onPreStart', (_, nxt) => {
+    //                     const collections = request.collections(true);
+    //                     expect(collections).to.have.length(2);
+    //                     expect(collections.thismodel.identity).to.equal('thismodel');
+    //                     expect(collections.thatmodel.identity).to.equal('thatmodel');
+    //                     reply({ ok: 'root' });
+    //                 }
+    //             });
+    //             server.ext('onPreStart', (_, nxt) => {
 
-                    const collections = server.collections(true);
-                    expect(collections).to.have.length(2);
-                    expect(collections.thismodel.identity).to.equal('thismodel');
-                    expect(collections.thatmodel.identity).to.equal('thatmodel');
-                    nxt();
-                });
+    //                 const collections = server.collections(true);
+    //                 expect(collections).to.have.length(2);
+    //                 expect(collections.thismodel.identity).to.equal('thismodel');
+    //                 expect(collections.thatmodel.identity).to.equal('thatmodel');
+    //                 nxt();
+    //             });
 
-                const plugin = (srv, opts, next) => {
+    //             const plugin = (srv, opts, next) => {
 
-                    srv.dogwater(ModelsFixture[1]);
-                    srv.route({
-                        path: '/plugin',
-                        method: 'get',
-                        handler: (request, reply) => {
+    //                 srv.dogwater(ModelsFixture[1]);
+    //                 srv.route({
+    //                     path: '/plugin',
+    //                     method: 'get',
+    //                     handler: (request, reply) => {
 
-                            const collections = request.collections(true);
-                            expect(collections).to.have.length(2);
-                            expect(collections.thismodel.identity).to.equal('thismodel');
-                            expect(collections.thatmodel.identity).to.equal('thatmodel');
-                            reply({ ok: 'plugin' });
-                        }
-                    });
-                    srv.ext('onPreStart', (_, nxt) => {
+    //                         const collections = request.collections(true);
+    //                         expect(collections).to.have.length(2);
+    //                         expect(collections.thismodel.identity).to.equal('thismodel');
+    //                         expect(collections.thatmodel.identity).to.equal('thatmodel');
+    //                         reply({ ok: 'plugin' });
+    //                     }
+    //                 });
+    //                 srv.ext('onPreStart', (_, nxt) => {
 
-                        const collections = srv.collections(true);
-                        expect(collections).to.have.length(2);
-                        expect(collections.thismodel.identity).to.equal('thismodel');
-                        expect(collections.thatmodel.identity).to.equal('thatmodel');
-                        nxt();
-                    });
-                    next();
-                };
+    //                     const collections = srv.collections(true);
+    //                     expect(collections).to.have.length(2);
+    //                     expect(collections.thismodel.identity).to.equal('thismodel');
+    //                     expect(collections.thatmodel.identity).to.equal('thatmodel');
+    //                     nxt();
+    //                 });
+    //                 next();
+    //             };
 
-                plugin.attributes = { name: 'my-plugin' };
+    //             plugin.attributes = { name: 'my-plugin' };
 
-                server.register(plugin, (err) => {
+    //             server.register(plugin, (err) => {
 
-                    expect(err).to.not.exist();
+    //                 expect(err).to.not.exist();
 
-                    server.initialize((err) => {
+    //                 server.initialize((err) => {
 
-                        expect(err).to.not.exist();
+    //                     expect(err).to.not.exist();
 
-                        server.inject({ url: '/root', method: 'get' }, (res1) => {
+    //                     server.inject({ url: '/root', method: 'get' }, (res1) => {
 
-                            expect(res1.result).to.equal({ ok: 'root' });
+    //                         expect(res1.result).to.equal({ ok: 'root' });
 
-                            server.inject({ url: '/plugin', method: 'get' }, (res2) => {
+    //                         server.inject({ url: '/plugin', method: 'get' }, (res2) => {
 
-                                expect(res2.result).to.equal({ ok: 'plugin' });
-                                done();
-                            });
-                        });
-                    });
-                });
-            });
-        });
+    //                             expect(res2.result).to.equal({ ok: 'plugin' });
+    //                             done();
+    //                         });
+    //                     });
+    //                 });
+    //             });
+    //         });
+    //     });
     });
 });

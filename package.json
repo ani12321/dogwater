@@ -23,11 +23,12 @@
   ],
   "dependencies": {
     "hoek": "4.x.x",
-    "joi": "10.x.x"
+    "joi": "10.x.x",
+    "sails-disk": "^1.1.2"
   },
   "peerDependencies": {
     "hapi": ">=10 <17",
-    "waterline": ">=0.10.0 <0.13.0"
+    "waterline": "0.13.x"
   },
   "devDependencies": {
     "code": "4.x.x",
@@ -35,7 +36,7 @@
     "hapi": "16.x.x",
     "lab": "11.x.x",
     "sails-memory": "0.10.x",
-    "waterline": "0.12.x"
+    "waterline": "0.13.x"
   },
   "author": "Devin Ivy <devin@bigroomstudios.com>",
   "license": "MIT"
